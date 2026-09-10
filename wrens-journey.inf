@@ -1,11 +1,10 @@
 !% -~S
-!  WREN'S JOURNEY -- A Skeptic's Nightmare
+!  WREN'S JOURNEY
 !  An Interactive Fiction, adapted from a worldbuilding treatment.
 !  Written in Inform 6 for the Z-machine.
 
 Constant Story "^WREN'S JOURNEY^";
-Constant Headline "^A Skeptic's Nightmare^
-An Interactive Fiction^
+Constant Headline "^An Interactive Fiction^
 Release 1 / Serial number 260909^";
 
 Include "Parser";
