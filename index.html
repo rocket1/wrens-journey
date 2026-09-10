@@ -299,6 +299,20 @@ function appendRun(text, cls){
     }
   }
 }
+function echoCommand(text){
+  // The game already printed its own trailing "&gt;" prompt as the open
+  // paragraph; append the typed command onto that same line instead of
+  // starting a new one, so we don't get two stacked carets.
+  if (curPara && curPara.textContent.replace(/\s+$/, '') === '>'){
+    var span = document.createElement('span');
+    span.className = 'cmd';
+    span.textContent = ' ' + text;
+    curPara.appendChild(span);
+    curPara = null;
+  } else {
+    appendSystemLine('> ' + text);
+  }
+}
 function appendSystemLine(text){
   curPara = null;
   var p = document.createElement('p');
@@ -535,7 +549,7 @@ function submitLine(text){
   }
   historyPos = cmdHistory.length;
   historyDraft = '';
-  appendSystemLine('> ' + text);
+  echoCommand(text);
   var codes = [];
   for (var i = 0; i < text.length && i < pendingBuffer.length; i++){
     codes.push(text.charCodeAt(i));
