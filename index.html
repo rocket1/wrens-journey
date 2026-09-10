@@ -145,6 +145,30 @@ details.howto summary::marker{color:var(--ember);}
   display:flex;
   flex-direction:column;
 }
+.tabbar{
+  display:flex;
+  background:var(--term-bg);
+  border-bottom:1px solid var(--term-border);
+}
+.tab{
+  appearance:none;
+  background:transparent;
+  border:none;
+  border-bottom:2px solid transparent;
+  color:var(--term-fg-dim);
+  font-family:inherit;
+  font-size:0.74rem;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  padding:9px 16px 7px;
+  cursor:pointer;
+}
+.tab:hover{color:var(--term-fg);}
+.tab.active{
+  color:var(--term-status-fg);
+  border-bottom-color:var(--biolume-strong);
+}
+.tab:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;}
 .statusbar{
   background:var(--term-status-bg);
   color:var(--term-status-fg);
@@ -177,6 +201,28 @@ details.howto summary::marker{color:var(--ember);}
 #output .sys{color:var(--term-fg-dim);}
 #output p{margin:0 0 1.1em;}
 #output p:last-child{margin-bottom:0;}
+#mapWrap{
+  height:min(58vh, 520px);
+  overflow:auto;
+  background:var(--term-bg);
+  position:relative;
+  cursor:grab;
+}
+#mapWrap.dragging{cursor:grabbing;}
+#mapCanvas{display:block;}
+.mapEmpty{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  max-width:32ch;
+  text-align:center;
+  color:var(--term-fg-dim);
+  font-size:0.82rem;
+  line-height:1.5;
+  margin:0;
+  padding:0 16px;
+}
 .inputrow{
   display:flex;
   align-items:center;
@@ -231,12 +277,22 @@ footer a{color:var(--biolume-strong);}
       <div><code>score</code></div>
       <div><code>save</code> / <code>restore</code></div>
       <div><code>undo</code></div>
+      <div>&uarr; / &darr; for command history</div>
+      <div>Map tab traces where you've been</div>
     </div>
   </details>
 
   <div class="console" id="console">
+    <div class="tabbar" role="tablist">
+      <button type="button" class="tab active" id="tabStory" role="tab" aria-selected="true" aria-controls="output">Story</button>
+      <button type="button" class="tab" id="tabMap" role="tab" aria-selected="false" aria-controls="mapWrap">Map</button>
+    </div>
     <div class="statusbar" id="statusbar"></div>
     <div id="output" role="log" aria-live="polite"></div>
+    <div id="mapWrap" hidden>
+      <canvas id="mapCanvas" aria-label="Map of rooms you have visited"></canvas>
+      <p class="mapEmpty" id="mapEmpty">The map fills in as you explore &mdash; take a few steps, then check back here.</p>
+    </div>
     <div class="inputrow">
       <span class="glyph">&gt;</span>
       <input id="cmdline" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type a command" disabled placeholder="Loading the story file&hellip;">
@@ -415,6 +471,308 @@ function renderStatus(){
   statusEl.textContent = text;
 }
 
+// ---- Auto-map: infers rooms and connections from the status line -------
+var tabStoryBtn = document.getElementById('tabStory');
+var tabMapBtn = document.getElementById('tabMap');
+var mapWrap = document.getElementById('mapWrap');
+var mapCanvas = document.getElementById('mapCanvas');
+var mapEmptyEl = document.getElementById('mapEmpty');
+var mapTabActive = false;
+
+var mapNodes = {};      // roomName -> {x, y}
+var mapEdges = [];      // [ [roomA, roomB], ... ]
+var mapEdgeSet = {};
+var mapCurrentRoom = null;
+var mapLastMoves = -1;
+
+var MAP_DIRS = {
+  n: [0, -1], north: [0, -1],
+  s: [0, 1], south: [0, 1],
+  e: [1, 0], east: [1, 0],
+  w: [-1, 0], west: [-1, 0],
+  ne: [1, -1], northeast: [1, -1],
+  nw: [-1, -1], northwest: [-1, -1],
+  se: [1, 1], southeast: [1, 1],
+  sw: [-1, 1], southwest: [-1, 1],
+  u: [0.4, -0.65], up: [0.4, -0.65],
+  d: [-0.4, 0.65], down: [-0.4, 0.65],
+  in: [0.65, 0.15], enter: [0.65, 0.15],
+  out: [-0.65, -0.15], exit: [-0.65, -0.15]
+};
+var MAP_FALLBACK_OFFSETS = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1]];
+
+function mapParseDirection(cmd){
+  var words = cmd.trim().toLowerCase().split(/\s+/);
+  if (words[0] === 'go' || words[0] === 'walk' || words[0] === 'run' || words[0] === 'head'){
+    words.shift();
+  }
+  var w = words[0] || '';
+  return Object.prototype.hasOwnProperty.call(MAP_DIRS, w) ? w : null;
+}
+
+function mapRoomFromStatus(){
+  var text = (statusEl.textContent || '').split('\n')[0];
+  var m = text.match(/^(.*?)\s{2,}Score:/);
+  var name = (m ? m[1] : text).trim();
+  return name;
+}
+
+function mapMovesFromStatus(){
+  var text = statusEl.textContent || '';
+  var m = text.match(/Moves:\s*(\d+)/);
+  return m ? parseInt(m[1], 10) : -1;
+}
+
+function mapPositionTaken(x, y){
+  // Compare in actual pixel space (spacing on the two axes differs), so a
+  // small diagonal nudge (used for up/down/in/out) is correctly treated as
+  // a collision when it isn't far enough to keep two boxes from overlapping.
+  for (var name in mapNodes){
+    var p = mapNodes[name];
+    var dx = Math.abs(p.x - x) * MAP_SPACING_X;
+    var dy = Math.abs(p.y - y) * MAP_SPACING_Y;
+    if (dx < MAP_BOX_W * 0.9 && dy < MAP_BOX_H * 0.9) return true;
+  }
+  return false;
+}
+
+function mapFallbackVector(fromName){
+  for (var i = 0; i < MAP_FALLBACK_OFFSETS.length; i++){
+    var v = MAP_FALLBACK_OFFSETS[i];
+    var base = mapNodes[fromName] || {x:0,y:0};
+    if (!mapPositionTaken(base.x + v[0], base.y + v[1])) return v;
+  }
+  return [0, 1];
+}
+
+function mapReset(startRoom){
+  mapNodes = {};
+  mapEdges = [];
+  mapEdgeSet = {};
+  mapCurrentRoom = null;
+  if (startRoom){
+    mapNodes[startRoom] = {x: 0, y: 0};
+    mapCurrentRoom = startRoom;
+  }
+}
+
+function mapRecordTransition(fromName, toName, dirWord){
+  if (!toName) return;
+  if (!(toName in mapNodes)){
+    var base = (fromName && mapNodes[fromName]) || {x: 0, y: 0};
+    var vec = (dirWord && MAP_DIRS[dirWord]) || mapFallbackVector(fromName || toName);
+    if (mapPositionTaken(base.x + vec[0], base.y + vec[1])){
+      // The "correct" direction lands on an occupied cell (the map isn't a
+      // perfect grid) - nudge to the nearest free neighbouring cell instead.
+      vec = mapFallbackVector(fromName || toName);
+    }
+    mapNodes[toName] = {x: base.x + vec[0], y: base.y + vec[1]};
+  }
+  if (fromName && fromName !== toName){
+    var key = [fromName, toName].sort().join(' ↔ ');
+    if (!mapEdgeSet[key]){
+      mapEdgeSet[key] = true;
+      mapEdges.push([fromName, toName]);
+    }
+  }
+}
+
+// Called once per submitted command, after the VM has finished processing it.
+function mapNoteTurn(cmdText){
+  var room = mapRoomFromStatus();
+  if (!room) return;
+  var moves = mapMovesFromStatus();
+
+  // A restart (or a fresh game) resets Moves back to 0 - start the map over.
+  if (moves === 0 && mapLastMoves > 0){
+    mapReset(room);
+  } else if (!mapCurrentRoom){
+    mapReset(room);
+  } else if (room !== mapCurrentRoom){
+    mapRecordTransition(mapCurrentRoom, room, mapParseDirection(cmdText || ''));
+  }
+  mapCurrentRoom = room;
+  mapLastMoves = moves;
+
+  if (mapEmptyEl) mapEmptyEl.hidden = Object.keys(mapNodes).length > 1;
+  if (mapTabActive){
+    drawMap();
+    scrollMapToCurrent();
+  }
+}
+
+var MAP_BOX_W = 148, MAP_BOX_H = 58, MAP_SPACING_X = 184, MAP_SPACING_Y = 96, MAP_PAD = 36;
+
+function mapThemeColor(varName, fallback){
+  var v = getComputedStyle(document.documentElement).getPropertyValue(varName);
+  v = v && v.trim();
+  return v || fallback;
+}
+
+function mapWrapText(ctx, text, maxWidth){
+  var words = text.split(' ');
+  var lines = [];
+  var cur = '';
+  for (var i = 0; i < words.length; i++){
+    var test = cur ? cur + ' ' + words[i] : words[i];
+    if (cur && ctx.measureText(test).width > maxWidth){
+      lines.push(cur);
+      cur = words[i];
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 3){
+    lines = lines.slice(0, 3);
+    lines[2] = lines[2].replace(/\s*\S*$/, '') + '…';
+  }
+  return lines;
+}
+
+function mapScreenPos(name, minX, minY){
+  var p = mapNodes[name];
+  return {
+    cx: MAP_PAD + (p.x - minX) * MAP_SPACING_X + MAP_BOX_W / 2,
+    cy: MAP_PAD + (p.y - minY) * MAP_SPACING_Y + MAP_BOX_H / 2
+  };
+}
+
+function drawMap(){
+  var names = Object.keys(mapNodes);
+  if (names.length === 0) return;
+
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  names.forEach(function(n){
+    var p = mapNodes[n];
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  });
+
+  var width = Math.max(MAP_BOX_W + MAP_PAD * 2, (maxX - minX) * MAP_SPACING_X + MAP_BOX_W + MAP_PAD * 2);
+  var height = Math.max(MAP_BOX_H + MAP_PAD * 2, (maxY - minY) * MAP_SPACING_Y + MAP_BOX_H + MAP_PAD * 2);
+  var dpr = window.devicePixelRatio || 1;
+  mapCanvas.style.width = width + 'px';
+  mapCanvas.style.height = height + 'px';
+  mapCanvas.width = Math.round(width * dpr);
+  mapCanvas.height = Math.round(height * dpr);
+
+  var ctx = mapCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  var edgeColor = mapThemeColor('--rule', '#556');
+  var boxStroke = mapThemeColor('--term-border', '#345');
+  var boxFill = mapThemeColor('--paper-raised', '#1f2319');
+  var curFill = mapThemeColor('--biolume-strong', '#7fd18f');
+  var textColor = mapThemeColor('--term-fg', '#bfe6c6');
+  var curTextColor = mapThemeColor('--term-bg', '#0a0c08');
+
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = edgeColor;
+  mapEdges.forEach(function(e){
+    var a = mapScreenPos(e[0], minX, minY);
+    var b = mapScreenPos(e[1], minX, minY);
+    ctx.beginPath();
+    ctx.moveTo(a.cx, a.cy);
+    ctx.lineTo(b.cx, b.cy);
+    ctx.stroke();
+  });
+
+  ctx.font = '600 12px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  names.forEach(function(n){
+    var pos = mapScreenPos(n, minX, minY);
+    var x = pos.cx - MAP_BOX_W / 2, y = pos.cy - MAP_BOX_H / 2;
+    var isCurrent = (n === mapCurrentRoom);
+    var r = 8;
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + MAP_BOX_W, y, x + MAP_BOX_W, y + MAP_BOX_H, r);
+    ctx.arcTo(x + MAP_BOX_W, y + MAP_BOX_H, x, y + MAP_BOX_H, r);
+    ctx.arcTo(x, y + MAP_BOX_H, x, y, r);
+    ctx.arcTo(x, y, x + MAP_BOX_W, y, r);
+    ctx.closePath();
+    ctx.fillStyle = isCurrent ? curFill : boxFill;
+    ctx.fill();
+    ctx.lineWidth = isCurrent ? 2.5 : 1.5;
+    ctx.strokeStyle = isCurrent ? curFill : boxStroke;
+    ctx.stroke();
+
+    ctx.fillStyle = isCurrent ? curTextColor : textColor;
+    var lines = mapWrapText(ctx, n, MAP_BOX_W - 16);
+    var lineHeight = 15;
+    var startY = pos.cy - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach(function(line, i){
+      ctx.fillText(line, pos.cx, startY + i * lineHeight);
+    });
+  });
+}
+
+function scrollMapToCurrent(){
+  if (!mapCurrentRoom || !(mapCurrentRoom in mapNodes)) return;
+  var names = Object.keys(mapNodes);
+  var minX = Infinity, minY = Infinity;
+  names.forEach(function(n){
+    var p = mapNodes[n];
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+  });
+  var pos = mapScreenPos(mapCurrentRoom, minX, minY);
+  mapWrap.scrollLeft = Math.max(0, pos.cx - mapWrap.clientWidth / 2);
+  mapWrap.scrollTop = Math.max(0, pos.cy - mapWrap.clientHeight / 2);
+}
+
+function setActiveTab(tab){
+  mapTabActive = (tab === 'map');
+  outputEl.hidden = mapTabActive;
+  mapWrap.hidden = !mapTabActive;
+  tabStoryBtn.classList.toggle('active', !mapTabActive);
+  tabMapBtn.classList.toggle('active', mapTabActive);
+  tabStoryBtn.setAttribute('aria-selected', String(!mapTabActive));
+  tabMapBtn.setAttribute('aria-selected', String(mapTabActive));
+  if (mapTabActive){
+    drawMap();
+    scrollMapToCurrent();
+  }
+}
+
+tabStoryBtn.addEventListener('click', function(){ setActiveTab('story'); });
+tabMapBtn.addEventListener('click', function(){ setActiveTab('map'); });
+
+// Click-and-drag panning, in addition to native scrolling/trackpad/touch.
+(function(){
+  var dragging = false, startX, startY, startScrollLeft, startScrollTop;
+  mapWrap.addEventListener('mousedown', function(ev){
+    dragging = true;
+    mapWrap.classList.add('dragging');
+    startX = ev.clientX;
+    startY = ev.clientY;
+    startScrollLeft = mapWrap.scrollLeft;
+    startScrollTop = mapWrap.scrollTop;
+  });
+  window.addEventListener('mousemove', function(ev){
+    if (!dragging) return;
+    mapWrap.scrollLeft = startScrollLeft - (ev.clientX - startX);
+    mapWrap.scrollTop = startScrollTop - (ev.clientY - startY);
+  });
+  window.addEventListener('mouseup', function(){
+    dragging = false;
+    mapWrap.classList.remove('dragging');
+  });
+})();
+
+if (window.matchMedia){
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+    if (mapTabActive) drawMap();
+  });
+}
+
 function writeToWin(win, text){
   if (!win) return;
   if (win.grid){
@@ -567,6 +925,7 @@ function submitLine(text){
   inputEl.disabled = true;
   vm.update_screen_size && safeUpdateScreenSize();
   vm.resume();
+  mapNoteTurn(text);
 }
 
 function submitChar(code){
@@ -630,6 +989,11 @@ function boot(){
     vm.prepare(storyBytes, { Glk: Glk });
     vm.start();
     safeUpdateScreenSize();
+    var startRoom = mapRoomFromStatus();
+    if (startRoom){
+      mapReset(startRoom);
+      mapLastMoves = mapMovesFromStatus();
+    }
   } catch (e){
     appendSystemLine('Could not start the story file: ' + (e && e.message ? e.message : e));
     console.error(e);
