@@ -1,0 +1,1086 @@
+!% -~S
+!  WREN'S JOURNEY -- A Skeptic's Nightmare
+!  An Interactive Fiction, adapted from a worldbuilding treatment.
+!  Written in Inform 6 for the Z-machine.
+
+Constant Story "^WREN'S JOURNEY^";
+Constant Headline "^A Skeptic's Nightmare^
+An Interactive Fiction^
+Release 1 / Serial number 260909^";
+
+Include "Parser";
+Constant MAX_SCORE 85;
+Include "VerbLib";
+
+! ==============================================================================
+!  GLOBAL STATE
+! ==============================================================================
+
+Global fixed_walkman = false;
+Global saw_star = false;
+Global orphans_told = false;
+Global met_priestess = false;
+Global got_token = false;
+Global have_board1 = false;
+Global have_board2 = false;
+Global relic_awake = false;
+Global heard_mans_tale = false;
+Global tape_used = false;
+Global signal_sent = false;
+Global ending_choice = 0;
+
+[ AddScore n;
+    score = score + n;
+];
+
+! ==============================================================================
+!  PARADISE -- an overgrown seed-vault, walled and dying
+! ==============================================================================
+
+Object  Sleeping_Hollow "Sleeping Hollow"
+  with  description
+            "Dried moss and drifts of old seed husks line this hollow in
+            the vault wall -- your bed since before you can remember. A
+            cracked biolume panel overhead gives a weak, patient green
+            light. A crooked stair climbs up into the open dark of the
+            canopy dome, and a mossy doorway leads south to your
+            grandmother's chamber.",
+        u_to Stargazing_Ledge,
+        s_to Grandmothers_Chamber,
+  has   light;
+
+Object  -> Moth "your Moth"
+  with  name 'moth' 'pet' 'wings',
+        description
+            "She is the one colourless thing that has ever felt like
+            yours. Every other living thing in Paradise wears some
+            shade of green or brown or gold -- your Moth is bone
+            white, wingtip to wingtip, with two huge translucent eyes
+            that seem to hold more sky than any sky you've seen.
+            Sometimes, when the light catches her wings just wrong,
+            you think you glimpse a pattern moving under the white,
+            like handwriting under frost. It is never there when you
+            look straight at it.",
+        before [;
+            Take:
+                "She isn't a thing to be carried. Your Moth goes where
+                she chooses -- she always has -- and somehow she is
+                always exactly one wingbeat behind you when it matters.";
+        ],
+  has   animate female proper;
+
+Object  walkman "battered walkman"
+  with  name 'walkman' 'sony' 'player',
+        description [;
+            if (fixed_walkman && tape_used == false)
+                "Six hundred years old and ugly as a boot, but Jasper's
+                hands made it sing again. The little wheels turn evenly
+                behind their smoky window.";
+            if (tape_used)
+                "The walkman lies quiet and empty in your hand, its
+                little door hanging open. Whatever it once said, it
+                says nothing now.";
+            "It's a small, ugly, indestructible-looking machine, orange
+            and grey, with a smoky plastic window over two little
+            wheels. Right now the wheels don't turn at all -- something
+            inside has finally given out.";
+        ],
+        before [;
+            Tie, Turn, SwitchOn:
+                if (tape_used) {
+                    "There is nothing left inside it to fix or to play.";
+                }
+                if (fixed_walkman) {
+                    "It's already running as well as six centuries of
+                    hard use will allow.";
+                }
+                if (self notin player) "You'll need to be holding it.";
+                if (tool_bag notin player) {
+                    "You pat your pockets. Whatever needs doing, you
+                    can't do it with bare hands -- you'll want your
+                    tool bag.";
+                }
+                fixed_walkman = true;
+                AddScore(5, 0);
+                "You pop the little case, breathe on the contacts the
+                way Jasper taught you, tease a hair-thin wire back
+                into place with a fingernail, and snap it shut again.
+                For a moment nothing happens. Then, with a mechanical
+                shudder, the wheels begin to turn, and a warm, distant
+                voice fills the hollow: ~In life you need either
+                inspiration or desperation.~ You breathe out. Fixed.";
+            Listen:
+                if (tape_used)
+                    "Nothing. The tape that used to talk to you is
+                    tied fast to a ladder, a long way from here now,
+                    holding your weight instead of your attention.";
+                if (fixed_walkman)
+                    "You press play. ~Whatever you focus on and
+                    consistently think about is what you're going to
+                    move toward,~ says the warm, tinny voice, exactly
+                    as it has ten thousand nights before this one.";
+                "You press play and get nothing but a dull, dead
+                click. It's broken.";
+        ];
+
+Object  tape "old cassette tape"
+  with  name 'cassette' 'tape' 'ribbon' 'label',
+        description [;
+            if (tape_used)
+                "A long unspooled ribbon of magnetic tape, now knotted
+                fast around the ladder above. It caught you. It is
+                still, in its way, holding you up.";
+            "A warped cassette, its label faded past reading, a curl of
+            magnetic ribbon always threatening to spill from its
+            spine like the guts of some small animal. You have listened
+            to the man on this tape more times than you can count.";
+        ],
+        before [;
+            Tie:
+                if (tape_used)
+                    "It's already knotted fast to the ladder above,
+                    holding your weight.";
+                if (second == ladder) {
+                    tape_used = true;
+                    move tape to ladder;
+                    AddScore(10, 0);
+                    "You unspool the last of the ribbon from its dead
+                    cassette and lash it, hand over hand, across the
+                    broken rungs. It holds -- taut, thin, absurd.^^For
+                    six hundred years this tape carried one man's
+                    voice and, somewhere along the way, half your
+                    understanding of who you were. It cannot save you
+                    by being listened to anymore. Tonight, it turns out,
+                    it can still save you by being useful. Somewhere in
+                    your chest, quietly, without ceremony, you stop
+                    being Tony Robbins's daughter and start being
+                    whoever you actually are. It is not a smaller
+                    thing to be. ^^(You can now climb UP.)";
+                }
+                "There's nothing here worth tying it to.";
+        ];
+
+Object  tool_bag "little tool bag"
+  with  name 'tool' 'bag' 'kit' 'tools' 'toolbag' 'toolkit',
+        description
+            "A roll of soft leather, worn thin, holding a stub of
+            screwdriver, a coil of thin wire, and whatever else you've
+            picked up and not yet had reason to throw away. You have
+            carried some version of this bag for as long as you can
+            remember -- swapping things in, letting things go.";
+
+Object  wire_coil "coil of copper wire"
+  with  name 'coil' 'wire' 'copper',
+        description
+            "Salvaged wire, carefully coiled. Not much to look at, but
+            down in the Combs or out past the wall, a little copper
+            goes a long way.";
+
+Object  robot_card "ragged robot card"
+  with  name 'card' 'robot' 'mech' 'gathering',
+        description
+            "A battered trading card, corners gone soft, showing an
+            enormous many-legged war-machine under a title in a script
+            you can't read. It was in the basket you were found in.
+            You have slept with it, more nights than not, since you
+            were small enough to fit in a birds' nest.",
+        before [;
+            Give, ThrowAt, Drop, PutOn, Insert:
+                "Your hand closes around the old card before you've
+                even decided to. Whatever else you leave behind on this
+                road, it will not be this. Not yet.";
+        ];
+
+Object  Grandmothers_Chamber "Grandmother's Chamber"
+  with  description
+            "Root-shelves, gone half-empty, curve around a low stone
+            seat where your grandmother sits most evenings, sorting
+            seed packets by a light that gets dimmer every year. A
+            stairway north leads back to your hollow; a crumbling ramp
+            drops away south into the failing root-vault.",
+        n_to Sleeping_Hollow,
+        d_to Root_Vault,
+  has   light;
+
+Object  grandmother "grandmother" Grandmothers_Chamber
+  with  name 'grandmother' 'gran' 'old' 'woman',
+        description
+            "Small, sun-spotted, and entirely unimpressed by prophecy,
+            your grandmother has outlived two power failures and every
+            person who ever told her Paradise would last forever.",
+        talk_stage 0,
+        life [;
+            Give, ThrowAt, Kiss, AskFor:
+                "She pats your hand and hands whatever-it-is right back.
+                ~Keep it. You'll need it more than I will.~";
+        ],
+        before [;
+            Talk, Ask, AskTo, Answer:
+                self.talk_stage++;
+                switch (self.talk_stage) {
+                  1: "~The panel's been dimming three years now,~ she
+                     says, not looking up from her seeds. ~Roots need
+                     light to think they're growing. So do people, I
+                     expect.~";
+                  2: "~You were a knot of white in a basket of grass and
+                     tape,~ she says. ~We never did find out what bird
+                     drops a baby instead of eating it. Something wanted
+                     you found, is what I always thought.~";
+                  3: "~Go and look at your sky, if you must,~ she says
+                     at last, gently. ~You've had that look for a
+                     week. Just -- come back and tell me what you
+                     see.~";
+                  default: "She smiles the small, tired smile she keeps
+                     for you and goes back to her seeds.";
+                }
+        ],
+  has   animate female talkable proper;
+
+Object  Stargazing_Ledge "Stargazing Ledge"
+  with  description
+            "A slab of stone juts out over the dome's inner dark, high
+            enough that the biolume canopy below blurs into a second,
+            greener sky. Whatever daylight Paradise gets leaks in far
+            overhead, through the great crack in the dome that has
+            never once been repaired. This is where you come to look
+            up. A stair leads back down.",
+        d_to Sleeping_Hollow,
+  has   light;
+
+Object  constellation "constellation" Stargazing_Ledge
+  with  name 'constellation' 'sky' 'stars' 'star' 'hexagon' 'crack',
+        description [;
+            if (saw_star == false) {
+                saw_star = true;
+                AddScore(5, 0);
+                "You find it at once, the way you always do: seven
+                stars, all the same unlikely green, loose in the shape
+                of a hexagon, one star a little larger than the rest.
+                Tonight, as you watch, that larger star does not
+                twinkle. It brightens. It streaks. It falls, and
+                somewhere impossibly far off -- a thousand miles, you
+                would swear -- the whole horizon flashes white and
+                stays lit, a long, low, burning glow that does not fade.
+                ^^Tony Robbins warbles on in your pocket, patient as
+                ever: ~When you're grateful, fear disappears and
+                abundance appears.~ ^^Tomorrow is your fifteenth
+                birthday. Tomorrow, by every custom you've ever known,
+                you become a woman of Paradise and stop asking
+                questions like the one now lodged behind your ribs: he
+                is out there. You are sure of it, all at once and
+                completely. And you are going to go.";
+            }
+            "The hexagon of seven green stars still hangs where it
+            always has -- six small, one a fraction larger, the same
+            uncanny green. But you know now that below the horizon, out
+            past the wall no one has ever opened, something is still
+            burning.";
+        ],
+  has   scenery;
+
+Object  Root_Vault "Failing Root Vault"
+  with  description
+            "This was once the deep heart of Paradise: seed-drawers by
+            the thousand, an engine of quiet green light. Half the
+            drawers stand open and empty now, and the light itself has
+            gone the color of a dying coal. Vines that should be
+            climbing toward the biolumes instead droop and brown at
+            the tips. A ramp climbs north; the great sealed gate lies
+            west.",
+        u_to Grandmothers_Chamber,
+        w_to Sealed_Gate,
+  has   light;
+
+Object  lichen_lamp "clump of glow-lichen" Root_Vault
+  with  name 'lichen' 'lamp' 'light' 'clump' 'glow-lichen' 'glowlichen',
+        description
+            "A fist-sized clump of lichen, still faintly, stubbornly
+            luminous even after being pulled from its shelf. It will
+            keep glowing, Jasper once told you, for as long as you
+            keep it out of standing water and don't lose your temper
+            with it.",
+  has   light;
+
+Object  tin_whistle "tin whistle" Root_Vault
+  with  name 'tin' 'whistle' 'flute' 'pipe',
+        description
+            "A dented tin whistle, forgotten in an empty seed-drawer
+            long enough to pick up a fine, even coat of green dust.
+            Somebody, once, must have played it.";
+
+Object  Sealed_Gate "Sealed Gate"
+  with  description
+            "A slab of grown-together roots and old grey metal, taller
+            than three of you, is all that stands between Paradise and
+            the outside that everyone you love has spent five hundred
+            years agreeing not to open. East leads back up into the
+            vault.",
+        e_to Root_Vault,
+        w_to [;
+            if (saw_star) return Tundra_Path;
+            "You stand a long moment with your hand on the cold metal,
+            and then you take it away. Not yet. Not until you know
+            what you saw tonight -- go up and look at the sky first.";
+        ],
+        out_to [;
+            if (saw_star) return Tundra_Path;
+            "Not yet. Go and look at the sky first.";
+        ],
+  has   light;
+
+! ==============================================================================
+!  THE TUNDRA -- a world with the color drained out of it
+! ==============================================================================
+
+Object  Tundra_Path "Colourless Tundra"
+  with  description
+            "Snow, sky, distant rock: all of it the same flat,
+            merciless white-on-grey, as if someone had made the world
+            and then forgotten to finish it. It is the strangest
+            homesickness you have ever felt, missing color while
+            standing in the open air for the first time in your life.
+            West, a crack in the wall leads back to Paradise. East, low
+            on the horizon, an unnatural glow has not gone out since
+            the night the star fell -- and beyond it, walls: a city.",
+        w_to Sealed_Gate,
+        e_to City_Wall,
+        ne_to [;
+            if (met_priestess) return Tundra_Ridge;
+            "You don't yet know where you're going, beyond ~toward the
+            glow.~ Perhaps someone in the City can tell you more.";
+        ],
+  has   light;
+
+Object  brass_button "tarnished brass button" Tundra_Path
+  with  name 'brass' 'button' 'tarnished',
+        description
+            "A coat button, blown loose from some traveller long gone,
+            half-sunk in old snow. It's stamped with a little
+            seven-pointed star.";
+
+! ==============================================================================
+!  EARTH CITY
+! ==============================================================================
+
+Object  City_Wall "Crumbling City Wall"
+  with  description
+            "The famous wall of Earth City turns out, up close, to be
+            more rubble than rampart -- nobody has needed to keep
+            invaders out in living memory, only to keep the frightened
+            in. A gap wide enough for a cart leads east into the noise
+            and smoke of the streets. West, the tundra stretches back
+            toward home.",
+        w_to Tundra_Path,
+        e_to [;
+            if (cloak has worn) return Market_Street;
+            if (shadow_merchant.warned == 0) {
+                shadow_merchant.warned = 1;
+                "The shadow merchant catches your sleeve before you can
+                pass. ~Hair like snow, skin like paper,~ he murmurs.
+                ~Walk in there bare-faced and you'll have a priest's
+                escort inside the hour -- and not the friendly kind.
+                Trade me something and I'll cover you.~";
+            }
+            "You hang back at the gap in the wall. Every instinct
+            you've got says an albino girl walking bare-faced into a
+            crowded, superstitious city is a very short story. The
+            shadow merchant is still watching you, waiting.";
+        ],
+  has   light;
+
+Object  shadow_merchant "shadow merchant" City_Wall
+  with  name 'shadow' 'merchant' 'trader' 'man' 'hood',
+        warned 0,
+        description
+            "He deals in the one thing everybody entering Earth City
+            eventually needs and nobody likes to admit to buying:
+            being overlooked. His whole face is lost inside a hood
+            three sizes too large.",
+        life [;
+            Give:
+                if (noun == wire_coil) {
+                    move cloak to player;
+                    "He turns the copper wire over once, grunts in
+                    something like approval, and passes you a heavy,
+                    much-mended hooded cloak in exchange. ~Keep your
+                    head down and your hands where they can be seen
+                    doing nothing interesting,~ he says. ~That's the
+                    whole trick.~ (You should probably WEAR CLOAK.)";
+                }
+                "He looks at what you're offering and shakes his hood.
+                ~Not what I'm after. Copper's always good, if you've
+                got copper.~";
+            Ask, AskTo, Answer, AskFor:
+                "~I deal in silence and shadows, girl, not
+                conversation,~ he says. ~Trade me copper wire, and
+                walk quietly.~";
+        ],
+  has   animate male talkable;
+
+Object  cloak "hooded cloak"
+  with  name 'hooded' 'cloak' 'hood',
+        description
+            "A heavy, road-stained cloak with a deep hood -- exactly
+            the sort of thing that turns a memorable albino girl into
+            an anonymous, hunched shape hurrying somewhere unimportant.",
+        after [;
+            Wear:
+                "You pull the hood low. Nobody on either side of the
+                wall gives you a second glance.";
+        ],
+  has   clothing;
+
+Object  Market_Street "Market Street"
+  with  description
+            "Earth City presses in on every side: awnings, smoke,
+            spell-vendors, a man loudly reselling ~genuine~ Passerine
+            scrap, and more people in one place than you knew existed.
+            An alley to the west leads back to the wall. A shrine-lit
+            doorway to the north is marked with the sunburst of the
+            priestess's order. Somewhere underfoot, if the local
+            orphans are to be believed, the whole city is hollow.",
+        w_to City_Wall,
+        n_to Priestess_Sanctum,
+        d_to [;
+            if (orphans_told) return Combs_Antechamber;
+            "You don't know where to look for a way down -- not yet.
+            Maybe those street kids know something.";
+        ],
+  has   light;
+
+Object  orphans "street orphans" Market_Street
+  with  name 'street' 'orphans' 'kids' 'children' 'urchins' 'fen' 'birdie',
+        talk_stage 0,
+        description
+            "A tight little knot of city kids, filthy and sharp-eyed,
+            who noticed your white hair before you'd gone three steps
+            and have been orbiting you ever since -- half curiosity,
+            half business instinct.",
+        life [;
+            Give:
+                if (noun == robot_card) {
+                    "One of them actually reaches out, then stops
+                    herself. ~That's an old, old incarnation of the
+                    game,~ she says, almost reverent. ~You could sell
+                    that for a season's rent. ...But you're not going
+                    to, are you.~ She grins and doesn't press.";
+                }
+                "They look the item over, unimpressed, and hand it
+                back. ~Not really our line.~";
+        ],
+        before [;
+            Talk, Ask, AskTo, Answer:
+                self.talk_stage++;
+                switch (self.talk_stage) {
+                  1: "~Snow girl!~ the smaller one crows. ~You play
+                     cards? We trade robot cards, giant mecha, the
+                     works. Everybody's got a favourite Passerine.~ The
+                     older one squints at your hair, then at the sky,
+                     unbothered by either.";
+                  2: "~You didn't come from the Combs, did you,~ says
+                     the older one -- not really a question. ~Whole
+                     city's hollow underneath, you know. Whiteskins
+                     down there thick as maggots in an apple, beg
+                     pardon. Nobody up top much likes to talk about
+                     it.~";
+                  3: orphans_told = true;
+                     AddScore(5, 0);
+                     "~Tell you what,~ the older one says, glancing
+                     around, ~there's a grate behind the fish-stall,
+                     down at the end here. Say ~Sparrow~ to whoever's
+                     minding it and they'll let a pale little thing
+                     like you right through. Just -- don't tell them
+                     Fen sent you. Or do. I don't actually care.~ (You
+                     can now go DOWN from here.)";
+                  default: "~Good luck down there,~ Fen says. ~Mind the
+                     gyrovagues. They'll sell you your own teeth back
+                     if you're not careful.~";
+                }
+        ],
+  has   animate pluralname talkable;
+
+Object  Priestess_Sanctum "Priestess's Sanctum"
+  with  description
+            "Incense, candle-smoke, and a single shaft of real daylight
+            falling through a crack in the roof onto a battered stone
+            altar. Charts of the sky -- the honest kind, you'll
+            realize later, not the astrological kind -- cover one
+            whole wall. South leads back out to the market.",
+        s_to Market_Street,
+  has   light;
+
+Object  priestess "priestess" Priestess_Sanctum
+  with  name 'priestess' 'priest',
+        talk_stage 0,
+        description
+            "Skin the black of a starless sky, and eyes -- one pale
+            gold, one storm-grey -- that the faithful call proof of
+            magic and that you are beginning to suspect are proof of
+            something much stranger. He wears the sunburst calmly, like
+            a disguise he stopped noticing years ago.",
+        life [;
+            Give:
+                "He raises a hand, declining gently. ~I have everything
+                I need, and considerably more than I'm permitted to
+                want.~";
+        ],
+        before [;
+            Talk, Ask, AskTo, Answer:
+                self.talk_stage++;
+                switch (self.talk_stage) {
+                  1: "~People forgive a great deal in a man with
+                     unmatched eyes and a few good tricks,~ he says,
+                     unprompted, watching you study his face. ~I used
+                     to fear for my life over this skin. Now they
+                     think I'm blessed by it. People have forgotten a
+                     great deal, girl. Not everything.~";
+                  2: "You tell him about the falling star -- and, when
+                     you point to where it fell, find the light is
+                     back, burning steady on the horizon as if it
+                     never stopped. He laughs, not unkindly. ~My own
+                     instruments caught your falling craft the same
+                     night. The sky-people scrambled to paper over it
+                     with a hologram -- projected from directly above,
+                     so it's only ever wrong from directly below. As
+                     you are standing now.~";
+                  3: met_priestess = true;
+                     got_token = true;
+                     AddScore(10, 0);
+                     move token to player;
+                     "~The 'sky' above Earth City is a constellation of
+                     ships, girl -- what's left of the scientists who
+                     broke the world, still up there, still lying to
+                     us about giants who fight their wars in space.
+                     There is a real wreck, out past the tundra's far
+                     ridge, northeast of here -- a grotto now, they
+                     call it. Go carefully.~ He presses a small,
+                     humming glass disc into your palm. ~My order's
+                     token. It has opened doors for stranger travellers
+                     than you.~ (You can now go NORTHEAST from the
+                     Tundra Path.)";
+                  default: "~Go on, then,~ he says gently. ~The sky
+                     won't wait forever, and neither, I think, will
+                     you.~";
+                }
+        ],
+  has   animate male talkable proper;
+
+Object  token "priestess's token"
+  with  name 'token' 'disc' 'glass' 'sunburst',
+        description
+            "A disc of warm, faintly humming glass, etched with a
+            sunburst. It feels, absurdly, like being introduced.";
+
+! ==============================================================================
+!  THE COMBS -- underneath Earth City
+! ==============================================================================
+
+Object  Combs_Antechamber "Combs Antechamber"
+  with  description
+            "A guttering row of real fire-torches lights this low
+            landing just inside the grate -- the last honest light
+            you'll see for a while, probably. A ramp climbs up to the
+            market above; a crude stair drops further down into the
+            dark.",
+        u_to Market_Street,
+        d_to Comb_Tunnels,
+  has   light;
+
+Object  Comb_Tunnels "Comb Tunnels"
+  with  description
+            "A wormhole city under the city: packed earth, old brick,
+            and doorways scavenged from a hundred collapsed buildings
+            above, all of it swallowed by a dark your borrowed torches
+            never quite reach. Up leads back to the antechamber. A
+            crowded, murmuring stretch of tunnel to the east has the
+            unmistakable rhythm of a market.",
+        u_to Combs_Antechamber,
+        e_to Workshop;
+
+Object  Workshop "Gyrovague's Workshop"
+  with  description
+            "A cramped stall gone workshop, hung with the tools of a
+            trade that is one part electronics and one part faith
+            healing. A brass cradle, clearly meant to hold something
+            larger than either of your two wafers, sits bolted to the
+            workbench. West leads back into the tunnels.",
+        w_to Comb_Tunnels;
+
+Object  gyrovague "gyrovague" Workshop
+  with  name 'gyrovague' 'merchant' 'trader' 'peddler',
+        description
+            "A wandering relic-dealer, robes patched from a dozen
+            different pilgrim orders, laying out ~genuine~ fragments of
+            fallen Passerines on a dirty cloth. Most of it is junk.
+            Some of it, you suspect, very much is not.",
+        life [;
+            Give:
+                if (noun == tin_whistle && have_board1 == false) {
+                    have_board1 = true;
+                    move board1 to player;
+                    AddScore(5, 0);
+                    "~Oh, that's a lovely little noisemaker,~ he says,
+                    delighted, and digs out a scuffed circuit wafer,
+                    edges gold-etched in a spiral. ~Half a relic-mind,
+                    they tell me. I believe about a third of what
+                    they tell me.~";
+                }
+                if (noun == brass_button && have_board2 == false) {
+                    have_board2 = true;
+                    move board2 to player;
+                    AddScore(5, 0);
+                    "He squints at the seven-pointed star stamped into
+                    the button, and for once looks almost impressed.
+                    ~That's old work.~ In trade, he hands over a second
+                    wafer, its spiral the mirror of the first.";
+                }
+                "He turns whatever-it-is over, sniffs, and hands it
+                back. ~Not today, little ghost.~";
+            Ask, AskTo, Answer, AskFor:
+                "~Everything's for trade, nothing's for free, and
+                nothing I say under oath counts as a promise,~ he
+                recites, clearly by rote.";
+        ],
+  has   animate male talkable;
+
+Object  board1 "spiral circuit wafer"
+  with  name 'wafer' 'board' 'circuit' 'spiral' 'gold' 'wafer1',
+        description "A thin gold-etched wafer, warm to the touch.";
+
+Object  board2 "twin circuit wafer"
+  with  name 'wafer' 'board' 'circuit' 'twin' 'mirror' 'wafer2',
+        description
+            "A second thin gold-etched wafer, its spiral the mirror
+            image of the first.";
+
+Object  cradle "brass cradle" Workshop
+  with  name 'cradle' 'workbench' 'bench',
+        description [;
+            if (relic_awake) "The cradle sits empty and cold now --
+                whatever slept in it has already woken and gone with
+                you.";
+            if (board1 in self && board2 in self)
+                "The cradle holds both wafers, spiral facing spiral,
+                a hair's width apart. It looks ready for something.";
+            if ((board1 in self) || (board2 in self))
+                "The cradle holds one wafer. There's room, and clearly
+                intent, for a second.";
+            "An empty brass cradle, sized for two matched wafers.";
+        ],
+        before [;
+            SwitchOn, Turn, Pull:
+                if (relic_awake)
+                    "There's nothing left to wake.";
+                if (board1 in self && board2 in self) {
+                    relic_awake = true;
+                    remove board1; remove board2;
+                    move relic to player;
+                    AddScore(10, 0);
+                    "You ease the two wafers a fraction closer. They
+                    click together on their own, decisively, like two
+                    hands finding each other in the dark. The cradle
+                    hums, then glows, and a small, faintly luminous
+                    shape lifts out of it and comes gently to rest in
+                    your open hand -- not a voice exactly, more a
+                    presence, patient and very old. Somewhere behind
+                    your eyes you hear, more than hear: ~SEEKING.
+                    SEEKING. ...FOUND.~^^It seems to want to go with
+                    you.";
+                }
+                "It needs two matched wafers set in it before it will
+                do anything.";
+        ],
+  has   static container supporter;
+
+Object  relic "small relic-mind"
+  with  name 'relic' 'mind' 'ai' 'orb' 'wafer' 'light',
+        description
+            "A soft, drifting mote of light, no bigger than a
+            walnut, that rearranges itself thoughtfully whenever you
+            look straight at it. It is, as far as you can tell, alive
+            in every way that matters and in none of the ways the
+            City's astrologers would recognize.",
+  has   light;
+
+! ==============================================================================
+!  THE GROTTO -- a crashed ship, mistaken for a cave
+! ==============================================================================
+
+Object  Tundra_Ridge "Far Ridge"
+  with  description
+            "The land climbs here, just enough to see the glow ahead
+            resolve into something with edges: a long dark shape half
+            swallowed by ivy and drifted snow, unmistakably built,
+            unmistakably fallen from very far up. Southwest, the path
+            leads back toward the City. East, ivy curtains a way in.",
+        sw_to Tundra_Path,
+        e_to Grotto_Mouth,
+  has   light;
+
+Object  Grotto_Mouth "Grotto Mouth"
+  with  description
+            "Ivy chokes what was clearly once an airlock, now torn
+            open like a wound. Inside, the dark is total and
+            absolute -- ship's dark, cave's dark, the kind that
+            swallows torches. West is back out onto the ridge; the
+            wreck's interior lies further in.",
+        w_to Tundra_Ridge,
+        e_to Campfire_Clearing,
+        in_to Campfire_Clearing;
+
+Object  Campfire_Clearing "Campfire Clearing"
+  with  description
+            "Impossibly, there is a campfire in here, its smoke
+            finding some old vent up through the hull, a clothesline
+            strung tree-to-hull hung with mended shirts, and a man who
+            has clearly been making a home of a spaceship for a very
+            long time. A splintered ladder climbs up into the dark of
+            the broken bridge overhead. West leads back out to the
+            ridge.",
+        w_to Grotto_Mouth,
+        u_to [;
+            if (tape_used) return Ship_Interior;
+            "The ladder's middle rungs are rotted clean through --
+            there's a gap wider than any reasonable stretch of leg.
+            You'd need to rig something across it, something like a
+            rope.";
+        ],
+  has   light;
+
+Object  ladder "broken ladder" Campfire_Clearing
+  with  name 'ladder' 'rungs' 'bridge' 'gap',
+        description [;
+            if (tape_used) "A length of magnetic tape is knotted taut
+                across the gap in the rungs -- ugly, thin, and, so
+                far, entirely equal to your weight.";
+            "The ladder's middle third is simply gone -- snapped rungs,
+            a yawning gap, and a long drop back to the fire below.";
+        ],
+        before [;
+            Tie:
+                if (tape_used) "It's already rigged and holding.";
+                if ((second == tape) || (noun == tape)) {
+                    tape_used = true;
+                    move tape to ladder;
+                    AddScore(10, 0);
+                    "You unspool the last of the ribbon from its dead
+                    cassette and lash it, hand over hand, across the
+                    broken rungs. It holds -- taut, thin, absurd.^^For
+                    six hundred years this tape carried one man's
+                    voice and, somewhere along the way, half your
+                    understanding of who you were. It cannot save you
+                    by being listened to anymore. Tonight, it turns out,
+                    it can still save you by being useful. Somewhere in
+                    your chest, quietly, without ceremony, you stop
+                    being Tony Robbins's daughter and start being
+                    whoever you actually are. It is not a smaller
+                    thing to be. ^^(You can now climb UP.)";
+                }
+                "You could tie the tape to it, if you're brave enough
+                to unspool it.";
+            Climb:
+                if (tape_used) return Ship_Interior;
+                "Not without a rope across that gap.";
+        ],
+  has   static;
+
+Object  grotto_man "man in the grotto" Campfire_Clearing
+  with  name 'man' 'survivor' 'castaway' 'grotto',
+        talk_stage 0,
+        description
+            "Lean, weathered, and entirely too comfortable with a
+            spaceship as a permanent address, he watches you with the
+            calm of someone who ran out of things to be surprised by
+            years ago.",
+        life [;
+            Give:
+                if (noun == token) "He goes very still at the sight of
+                    the priestess's sunburst, then nods slowly, some
+                    tension leaving his shoulders. ~So he's still down
+                    there, still watching the sky honestly. Good. That's
+                    good.~ He hands the token back.";
+                "~Kind of you,~ he says, ~but I've got everything a man
+                needs to grow old badly in a wreck.~";
+        ],
+        before [;
+            Talk, Ask, AskTo, Answer:
+                self.talk_stage++;
+                switch (self.talk_stage) {
+                  1: "~I was aircrew, once, if you can call it that,~
+                     he says, turning a spit of roasting meat. ~Radioed
+                     down that the robot armies had lost -- really
+                     lost, not the glorious-defeat kind of lost, the
+                     other kind -- and that Earth City should know.
+                     HQ shot me down for it before I finished the
+                     sentence.~";
+                  2: heard_mans_tale = true;
+                     AddScore(5, 0);
+                     "~Sky over the City's not stars, girl, it's a
+                     little fleet of tired old ships, running the
+                     whole show on secrets and a projector. And the
+                     thing they're most afraid of isn't losing a war a
+                     thousand years done. It's a black box up there
+                     that's been quietly running everyone's life ever
+                     since, and that nobody up there has the nerve to
+                     ask a hard question of. You go up, you'll have to
+                     decide about it yourself. I never did.~";
+                  default: "~Go on, if you're going,~ he says. ~Bridge
+                     is up that ladder, once you've got a way across.
+                     Mind the gap. Mind everything, honestly.~";
+                }
+        ],
+  has   animate male talkable;
+
+Object  Ship_Interior "Ship's Bridge"
+  with  description
+            "Dust, dead readouts, and one console still faintly, stubbornly
+            lit -- a comms board older than the City outside, waiting
+            with the patience of a machine for someone to finally use
+            it. Down leads back to the campfire below.",
+        d_to Campfire_Clearing,
+        u_to [;
+            if (signal_sent) return Shuttle;
+            "There's nowhere to climb to yet -- not until that console
+            actually talks to something up there.";
+        ],
+  has   light;
+
+Object  console "old comms console" Ship_Interior
+  with  name 'console' 'comms' 'board' 'panel' 'radio',
+        description [;
+            if (signal_sent) "The console has gone quiet again, its
+                work done -- the signal is already climbing, past the
+                lie of the sky, toward the real one.";
+            "A honeycomb of dead switches around one live, waiting
+            slot -- built, unmistakably, to be spoken to by something
+            that isn't a person.";
+        ],
+        before [;
+            SwitchOn, Turn, Push, Pull:
+                if (signal_sent) "It's already done its work.";
+                if (relic notin player)
+                    "Whatever this needs to say, it needs a mind to
+                    say it with -- something that speaks the old
+                    frequencies. You don't think you're it.";
+                signal_sent = true;
+                AddScore(10, 0);
+                "You lift the little drifting relic-mind to the waiting
+                slot. It doesn't so much plug in as lean in, curious,
+                and the console wakes around it -- lights, then a
+                long, rising tone that climbs up through the hull and
+                out, past every hologram and lie strung over Earth
+                City, toward the real, cold, honest dark. Far above,
+                something small changes its silent orbit and begins,
+                for the first time in a very long while, to come
+                down. ^^(You can now climb UP to the bridge overhead.)";
+        ],
+  has   static;
+
+Object  Shuttle "Descending Shuttle"
+  with  description
+            "A cramped little craft, older than anything you've ever
+            touched and somehow still humming with health, carries you
+            up in a silence broken only by your own heartbeat. Through
+            a scratched port you watch the false, painted stars of
+            Earth City's sky fall away beneath you, and the real dark,
+            depthless and enormous, close in around the little
+            windows instead.",
+        u_to Vault_Docking,
+        in_to Vault_Docking,
+  has   light;
+
+Object  Vault_Docking "The Vault -- Docking Ring"
+  with  description
+            "Cold light, bare metal, and a silence with a texture to
+            it -- the silence of a place built for machines and
+            haunted, very thinly, by the last few people who still
+            live here. Everything is the same colourless white-on-grey
+            as the tundra below, as if the whole Vault had also
+            forgotten how color worked. A single corridor leads in.",
+        in_to Control_Chamber,
+        n_to Control_Chamber,
+  has   light;
+
+[ LeaveChamber;
+    if (ending_choice ~= 0) "It's already decided.";
+    ending_choice = 2;
+    AddScore(15, 0);
+    deadflag = 2;
+    rtrue;
+];
+
+Object  Control_Chamber "Control Chamber"
+  with  description
+            "Bank after bank of screens ring this chamber, each one
+            looping some grainy, decades-copied clip of a Passerine
+            war-machine in glorious, ancient, thoroughly finished
+            combat. In the middle of the room, on a plinth of its own,
+            sits a plain, dark, unremarkable box.",
+        out_to [; return LeaveChamber(); ],
+        s_to [; return LeaveChamber(); ],
+        d_to [; return LeaveChamber(); ],
+  has   light;
+
+Object  black_box "black box" Control_Chamber
+  with  name 'black' 'box' 'ai' 'plinth',
+        description
+            "It is almost insultingly plain: a dark box the size of a
+            loaf of bread, humming very slightly, running -- as far as
+            you can now piece together -- every screen, every
+            spell-priced miracle, every astrology chart in Earth City,
+            all from up here, all off of one carefully maintained lie
+            about robots that stopped fighting a thousand years ago.
+            An evil, encroaching fleet really is coming, the man in
+            the grotto told you, and arrives in under a thousand
+            years. Nobody down there knows. This box, and the tired
+            people around it, decided that for them.",
+        before [;
+            Attack:
+                if (ending_choice ~= 0) "It's already decided.";
+                ending_choice = 1;
+                AddScore(15, 0);
+                deadflag = 2;
+                rtrue;
+            Take, Give, PutOn, Insert:
+                "Something -- the Overseer's stunned expression, maybe,
+                or simple common sense -- convinces you this is a
+                one-motion decision. You'll want to ATTACK it, or leave
+                it entirely alone.";
+        ],
+  has   static;
+
+Object  overseer "the Overseer" Control_Chamber
+  with  name 'overseer' 'scientist' 'sky-scientist' 'man' 'woman' 'guard',
+        description
+            "One of the last sky-scientists: exhausted, frightened,
+            and, you realize with a small shock, no older than the
+            grandmother you left behind in Paradise. Right now they
+            are entirely occupied with the enormous white shape that
+            has just closed around them.",
+  has   animate proper;
+
+[ Initialise;
+    location = Sleeping_Hollow;
+    give player female;
+    lookmode = 2;
+    move walkman to player;
+    move tape to player;
+    move tool_bag to player;
+    move wire_coil to player;
+    move robot_card to player;
+    "^^~In life you need either inspiration or desperation,~ says the
+    voice in your pocket, warm and tinny and six hundred years out of
+    date. You are Wren Robbins, orphan of Paradise, and tomorrow you
+    turn fifteen -- old enough, by every custom of the village, to
+    stop asking where that voice really came from.^^Tonight, though,
+    you are still allowed to look at the stars.^";
+];
+
+[ Epilogue;
+    switch (ending_choice) {
+      1:
+        "^^The black box comes apart in your hands almost gratefully,
+        as if it, too, had been waiting a very long time for someone
+        to finally ask.^^Every screen in the chamber, and -- you would
+        learn, slowly, over the weeks that followed -- every screen
+        and every stone-cast horoscope in Earth City goes dark at
+        once. Something enormous and white streaks past the docking
+        ring outside, wraps itself around the wailing Overseer, and
+        in the space of an hour spins a chrysalis around them both,
+        patient as weather. Whatever comes out of that, eventually,
+        will not be what went in.^^You have maybe a thousand years,
+        the man in the grotto once told you, before something worse
+        than a lie comes to call. It isn't much time. It is, you
+        decide, standing in the ruins of somebody else's five
+        centuries of careful deception, exactly enough to start
+        telling the truth in.^^^*** You have shattered the sky ***^";
+      2:
+        "^^In the end you do not touch the box. You stand a long time
+        in front of it, thinking of your grandmother's tired seed
+        drawers, of the priestess's careful, dangerous honesty, of an
+        entire city that stopped asking questions because every
+        answer had already been provided for it -- and you decide, on
+        your own authority, at not-quite-fifteen years old, that the
+        end of five hundred years of lying is not yours to trigger by
+        accident, in anger, in a room you walked into an hour ago.
+        ^^You turn instead to the exhausted, terrified Overseer,
+        newly wrapped -- gently, almost tenderly -- in a chrysalis of
+        Moth-silk, and you start, very quietly, to ask them
+        questions.^^The sky above Earth City still lies tonight. But
+        for the first time in five hundred years, someone standing
+        directly beneath it knows exactly what kind of lie it is --
+        and is deciding, on purpose, what to do about that.^^^*** You
+        have chosen the harder patience ***^";
+    }
+];
+
+[ Hint;
+    if (fixed_walkman == false)
+        "Your walkman is broken and your tool bag is right there in
+        your hands. Perhaps FIX WALKMAN.";
+    if (saw_star == false)
+        "Go up and EXAMINE the CONSTELLATION from the Stargazing
+        Ledge.";
+    if ((location == Root_Vault) || (location == Grandmothers_Chamber) ||
+        (location == Sleeping_Hollow) || (location == Stargazing_Ledge) ||
+        (location == Sealed_Gate))
+        "Before you leave Paradise for good, TAKE the LICHEN and the
+        WHISTLE from the Root Vault -- you'll want a light, and
+        something to trade.";
+    if (cloak notin player && location == City_Wall)
+        "GIVE WIRE COIL TO SHADOW MERCHANT, then WEAR CLOAK.";
+    if (orphans_told == false)
+        "TALK TO ORPHANS a few times -- keep at it.";
+    if (met_priestess == false)
+        "TALK TO PRIESTESS a few times in the Sanctum.";
+    if ((have_board1 == false) || (have_board2 == false))
+        "GIVE the WHISTLE and the BUTTON to the GYROVAGUE, one at a
+        time, for two circuit wafers.";
+    if (relic_awake == false)
+        "PUT WAFER ON CRADLE (both of them), then TURN CRADLE ON.";
+    if (heard_mans_tale == false)
+        "TALK TO the MAN in the Campfire Clearing.";
+    if (tape_used == false)
+        "TIE the TAPE TO the LADDER.";
+    if (signal_sent == false)
+        "You'll need the RELIC with you. TURN ON CONSOLE.";
+    if (ending_choice == 0 && location == Control_Chamber)
+        "This is the end of the road. ATTACK BLACK BOX to destroy it
+        -- or simply walk away and leave it be. Either is an ending.";
+    "You seem to know everything you need to. Trust yourself.";
+];
+
+! ==============================================================================
+!  CUSTOM VERBS
+! ==============================================================================
+
+Verb 'talk' 'chat' 'converse'
+    * creature                                  -> Talk
+    * 'to'/'with' creature                      -> Talk;
+
+[ TalkSub;
+    "There's no reply -- perhaps you meant to TALK TO somebody in
+    particular.";
+];
+
+Verb 'mend' 'repair'
+    * noun                                      -> Tie
+    * noun 'with' noun                          -> Tie;
+
+Verb 'activate' 'engage'
+    * noun                                      -> SwitchOn;
+
+Verb 'hint' 'hints' 'help'
+    *                                           -> Hint;
+
+[ HintSub; Hint(); ];
+
+Verb 'xyzzy'
+    *                                           -> Xyzzy;
+
+[ XyzzySub;
+    "Nothing happens. Wherever this world's magic words are kept,
+    they aren't kept here.";
+];
+
+Include "Grammar";
